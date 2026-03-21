@@ -6,6 +6,13 @@
 #
 # Adjust RUN= path to wherever kobosync is installed in your virtualenv.
 # The ATTRS{idVendor} is the Kobo USB vendor ID (2237).
+#
+# Logs are written to /home/pi/kobosync.log.
+# View live: tail -f /home/pi/kobosync.log
+# Or via systemd journal: journalctl -u kobosync-trigger
 
 ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="2237", \
-    RUN+="/bin/systemd-run --unit=kobosync-trigger /home/pi/.local/bin/kobosync sync"
+    RUN+="/bin/systemd-run --unit=kobosync-trigger \
+      --property=StandardOutput=append:/home/pi/kobosync.log \
+      --property=StandardError=append:/home/pi/kobosync.log \
+      /home/pi/.local/bin/kobosync sync"
