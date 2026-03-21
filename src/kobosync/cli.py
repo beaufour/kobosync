@@ -88,27 +88,14 @@ def sync(config_path: str | None, dry_run: bool, mount: str | None, eject: bool)
 
 
 def _eject(mount: Path) -> None:
-    """Unmount the Kobo using udisksctl. Leaves USB power on so charging continues."""
+    """Unmount the Kobo. Leaves USB power on so charging continues."""
     click.echo(f"Ejecting {mount} ...")
     try:
-        # Find the block device for this mount point
-        result = subprocess.run(
-            ["findmnt", "--target", str(mount), "--output", "SOURCE", "--noheadings"],
-            capture_output=True,
-            text=True,
-        )
-        device = result.stdout.strip()
-        if not device:
-            click.echo("Could not find block device for mount — skipping eject.", err=True)
-            return
-        subprocess.run(
-            ["udisksctl", "unmount", "--block-device", device, "--no-user-interaction"],
-            check=True,
-            capture_output=True,
-        )
+        subprocess.run(["sync"], check=True)
+        subprocess.run(["umount", str(mount)], check=True, capture_output=True)
         click.echo("Ejected. Safe to unplug.")
     except FileNotFoundError:
-        click.echo("udisksctl/findmnt not found — skipping eject (not on Linux?)", err=True)
+        click.echo("umount not found — skipping eject.", err=True)
     except subprocess.CalledProcessError as e:
         click.echo(f"Eject failed: {e.stderr.decode().strip()}", err=True)
 
