@@ -61,6 +61,7 @@ def sync_books(
     isbn_to_book: dict[str, HardcoverBook] = client.batch_books_by_isbn(isbns) if isbns else {}
 
     outcomes: list[BookSyncOutcome] = []
+    synced_hc_ids: set[int] = set()
 
     for book in kobo_books:
         desired_status = _kobo_status_to_hardcover(book.read_status)
@@ -77,6 +78,12 @@ def sync_books(
                 BookSyncOutcome(book, SyncResult.NOT_FOUND, "no match found on Hardcover")
             )
             continue
+
+        # Skip duplicate Kobo entries that map to the same Hardcover book
+        if hc_book.id in synced_hc_ids:
+            outcomes.append(BookSyncOutcome(book, SyncResult.SKIPPED, "duplicate edition"))
+            continue
+        synced_hc_ids.add(hc_book.id)
 
         existing = hardcover_by_book_id.get(hc_book.id)
 
@@ -163,7 +170,8 @@ def _sync_one(
             kobo_book, SyncResult.UPDATED, f"[dry-run] would update: {change_desc}"
         )
 
-    rating_to_set = kobo_book.rating if needs_rating_update else None
+    # Always pass the rating to upsert so the API doesn't clear an existing one.
+    rating_to_set = kobo_book.rating if needs_rating_update else current_rating
     user_book_id = client.upsert_user_book(hc_book.id, desired_status, rating_to_set)
 
     if needs_progress_update and desired_pages is not None:
