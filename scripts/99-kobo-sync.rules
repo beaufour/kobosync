@@ -12,7 +12,7 @@
 # Or via systemd journal: journalctl -u kobosync-trigger
 
 ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="2237", \
-    RUN+="/bin/systemd-run --unit=kobosync-trigger \
-      --property=StandardOutput=append:/home/pi/kobosync.log \
-      --property=StandardError=append:/home/pi/kobosync.log \
-      /home/pi/.local/bin/kobosync sync --eject"
+    RUN+="/bin/systemd-run --unit=kobosync-trigger --uid=<username> \
+      --property=StandardOutput=append:/home/<username>/kobosync.log \
+      --property=StandardError=append:/home/<username>/kobosync.log \
+      /home/<username>/.local/bin/kobosync sync --config /home/<username>/.config/kobosync/config.toml --eject"

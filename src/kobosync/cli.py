@@ -47,48 +47,64 @@ def sync(config_path: str | None, dry_run: bool, mount: str | None, eject: bool)
     books = read_books(db_path)
     click.echo(f"Found {len(books)} book(s) on Kobo")
 
+    sync_error: str | None = None
     try:
         with HardcoverClient(config.hardcover.api_token) as client:
             outcomes = sync_books(books, client, dry_run=dry_run)
     except (HardcoverError, RuntimeError) as e:
-        raise click.ClickException(str(e)) from e
+        sync_error = str(e)
+        outcomes = []
 
-    updated = [o for o in outcomes if o.result == SyncResult.UPDATED]
-    not_found = [o for o in outcomes if o.result == SyncResult.NOT_FOUND]
-    errors = [o for o in outcomes if o.result == SyncResult.ERROR]
+    if outcomes:
+        updated = [o for o in outcomes if o.result == SyncResult.UPDATED]
+        not_found = [o for o in outcomes if o.result == SyncResult.NOT_FOUND]
+        errors = [o for o in outcomes if o.result == SyncResult.ERROR]
 
-    for outcome in outcomes:
-        icon = {
-            SyncResult.UPDATED: "✓",
-            SyncResult.SKIPPED: "·",
-            SyncResult.NOT_FOUND: "?",
-            SyncResult.ERROR: "✗",
-        }[outcome.result]
-        click.echo(f"  {icon} {outcome.kobo_book.title!r}  — {outcome.message}")
+        for outcome in outcomes:
+            icon = {
+                SyncResult.UPDATED: "✓",
+                SyncResult.SKIPPED: "·",
+                SyncResult.NOT_FOUND: "?",
+                SyncResult.ERROR: "✗",
+            }[outcome.result]
+            click.echo(f"  {icon} {outcome.kobo_book.title!r}  — {outcome.message}")
 
-    click.echo(
-        f"\nDone: {len(updated)} updated, {len(not_found)} not found on Hardcover, "
-        f"{len(errors)} errors"
-    )
-    if dry_run:
-        click.echo("(dry-run: no changes were made)")
+        click.echo(
+            f"\nDone: {len(updated)} updated, {len(not_found)} not found on Hardcover, "
+            f"{len(errors)} errors"
+        )
+        if dry_run:
+            click.echo("(dry-run: no changes were made)")
 
     if eject and not dry_run:
         _eject(kobo_mount)
+
+    if sync_error:
+        raise click.ClickException(sync_error)
 
 
 def _eject(mount: Path) -> None:
     """Unmount the Kobo using udisksctl. Leaves USB power on so charging continues."""
     click.echo(f"Ejecting {mount} ...")
     try:
+        # Find the block device for this mount point
+        result = subprocess.run(
+            ["findmnt", "--target", str(mount), "--output", "SOURCE", "--noheadings"],
+            capture_output=True,
+            text=True,
+        )
+        device = result.stdout.strip()
+        if not device:
+            click.echo("Could not find block device for mount — skipping eject.", err=True)
+            return
         subprocess.run(
-            ["udisksctl", "unmount", "--mount-point", str(mount)],
+            ["udisksctl", "unmount", "--block-device", device],
             check=True,
             capture_output=True,
         )
         click.echo("Ejected. Safe to unplug.")
     except FileNotFoundError:
-        click.echo("udisksctl not found — skipping eject (not on Linux?)", err=True)
+        click.echo("udisksctl/findmnt not found — skipping eject (not on Linux?)", err=True)
     except subprocess.CalledProcessError as e:
         click.echo(f"Eject failed: {e.stderr.decode().strip()}", err=True)
 
