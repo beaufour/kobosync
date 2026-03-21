@@ -66,6 +66,6 @@ A pre-commit hook runs all three checks automatically.
 
 ## Notes
 
-- **Penguin History of Canada** and other books not in Hardcover's database will show as `?` (not found) — this is expected.
+- Books not found in Hardcover's database will show as `?` (not found) — this is expected for obscure titles.
 - Progress is stored as a page number. If Hardcover doesn't have a page count for an edition, progress is skipped for that book.
 - The Hardcover API rate-limits aggressively. If you see rate limit errors, just re-run — the sync is idempotent and will pick up where it left off.
