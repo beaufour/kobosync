@@ -1,0 +1,11 @@
+# udev rule to auto-run kobosync when a Kobo eReader is plugged in.
+#
+# Install on Raspberry Pi / Linux:
+#   sudo cp 99-kobo-sync.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules
+#
+# Adjust RUN= path to wherever kobosync is installed in your virtualenv.
+# The ATTRS{idVendor} is the Kobo USB vendor ID (2237).
+
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="2237", \
+    RUN+="/bin/systemd-run --unit=kobosync-trigger /home/pi/.local/bin/kobosync sync"

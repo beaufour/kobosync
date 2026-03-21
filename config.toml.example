@@ -1,0 +1,9 @@
+[hardcover]
+# Get your API token from https://hardcover.app/account/api
+api_token = "your-token-here"
+
+[kobo]
+# Path to your Kobo's mount point.
+# Mac: typically /Volumes/KOBOeReader
+# Linux/RPi: typically /media/<user>/KOBOeReader or /mnt/kobo
+mount_path = "/Volumes/KOBOeReader"
