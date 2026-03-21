@@ -24,6 +24,8 @@ class KoboBook:
 
 
 # ContentType=6 is a book (not chapter=9, newspaper=10, etc.)
+# Accessibility values: 1=Kobo store, -1=sideloaded, 6=Kobo Plus subscription
+# We include all non-zero values so sideloaded and subscription books are synced.
 _QUERY = """
 SELECT
     ContentID,
@@ -35,7 +37,7 @@ SELECT
     DateLastRead
 FROM content
 WHERE ContentType = 6
-  AND Accessibility = 1
+  AND Accessibility != 0
 ORDER BY DateLastRead DESC
 """
 
