@@ -78,7 +78,7 @@ def sync(config_path: str | None, dry_run: bool, mount: str | None, eject: bool)
 
 
 def _eject(mount: Path) -> None:
-    """Unmount and power off the Kobo using udisksctl."""
+    """Unmount the Kobo using udisksctl. Leaves USB power on so charging continues."""
     click.echo(f"Ejecting {mount} ...")
     try:
         subprocess.run(
@@ -86,21 +86,6 @@ def _eject(mount: Path) -> None:
             check=True,
             capture_output=True,
         )
-        # Power off the parent block device so it's safe to unplug
-        result = subprocess.run(
-            ["findmnt", "--target", str(mount), "--output", "SOURCE", "--noheadings"],
-            capture_output=True,
-            text=True,
-        )
-        device = result.stdout.strip()
-        if device:
-            # Power off the whole disk (e.g. /dev/sda from /dev/sda1)
-            disk = device.rstrip("0123456789")
-            subprocess.run(
-                ["udisksctl", "power-off", "--block-device", disk],
-                check=True,
-                capture_output=True,
-            )
         click.echo("Ejected. Safe to unplug.")
     except FileNotFoundError:
         click.echo("udisksctl not found — skipping eject (not on Linux?)", err=True)
