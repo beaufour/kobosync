@@ -12,6 +12,20 @@ from kobosync.kobo import find_kobo_mount, read_books
 from kobosync.sync import SyncResult, sync_books
 
 
+def _git_hash() -> str | None:
+    """Return the short git commit hash of the running code, or None if unavailable."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(Path(__file__).parent), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except Exception:
+        return None
+
+
 def _resolve_config(config_path: str | None) -> Config:
     path = Path(config_path) if config_path else default_config_path()
     if not path.exists():
@@ -37,7 +51,9 @@ def sync(
     config_path: str | None, dry_run: bool, mount: str | None, eject: bool, verbose: bool
 ) -> None:
     """Sync Kobo reading status and progress to Hardcover."""
-    click.echo(f"=== kobosync {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
+    git_hash = _git_hash()
+    version_str = f" [{git_hash}]" if git_hash else ""
+    click.echo(f"=== kobosync {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{version_str} ===")
     config = _resolve_config(config_path)
 
     kobo_mount = Path(mount) if mount else find_kobo_mount() or Path(config.kobo.mount_path)
