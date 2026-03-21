@@ -134,7 +134,9 @@ def _sync_one(
     current_status = existing_user_book["status_id"] if existing_user_book else None
     current_rating = existing_user_book.get("rating") if existing_user_book else None
     reads = existing_user_book.get("user_book_reads", []) if existing_user_book else []
-    current_pages = reads[0]["progress_pages"] if reads else None
+    existing_read = reads[0] if reads else None
+    current_pages = existing_read["progress_pages"] if existing_read else None
+    existing_read_id: int | None = int(existing_read["id"]) if existing_read else None
 
     desired_pages = _compute_progress_pages(kobo_book.percent_read, hc_book.pages)
 
@@ -165,6 +167,6 @@ def _sync_one(
     user_book_id = client.upsert_user_book(hc_book.id, desired_status, rating_to_set)
 
     if needs_progress_update and desired_pages is not None:
-        client.update_reading_progress(user_book_id, desired_pages)
+        client.update_reading_progress(user_book_id, desired_pages, existing_read_id)
 
     return BookSyncOutcome(kobo_book, SyncResult.UPDATED, change_desc)

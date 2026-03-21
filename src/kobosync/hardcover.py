@@ -167,26 +167,41 @@ class HardcoverClient:
         data = self._execute(mutation, {"object": obj})
         return int(data["insert_user_book"]["id"])
 
-    def update_reading_progress(self, user_book_id: int, progress_pages: int) -> None:
+    def update_reading_progress(
+        self, user_book_id: int, progress_pages: int, existing_read_id: int | None = None
+    ) -> None:
         """Record current page progress for a user_book.
 
-        Uses insert_user_book_read with the real API shape:
-          insert_user_book_read(user_book_id: Int!, user_book_read: DatesReadInput!)
+        If existing_read_id is provided, updates that read session in place.
+        Otherwise creates a new read session via insert_user_book_read.
         """
-        mutation = """
-        mutation UpdateProgress($userBookId: Int!, $userBookRead: DatesReadInput!) {
-          insert_user_book_read(
-            user_book_id: $userBookId
-            user_book_read: $userBookRead
-          ) {
-            id
-          }
-        }
-        """
-        self._execute(
-            mutation,
-            {
-                "userBookId": user_book_id,
-                "userBookRead": {"progress_pages": progress_pages},
-            },
-        )
+        if existing_read_id is not None:
+            mutation = """
+            mutation UpdateProgress($id: Int!, $object: DatesReadInput!) {
+              update_user_book_read(id: $id, object: $object) {
+                id
+              }
+            }
+            """
+            self._execute(
+                mutation,
+                {"id": existing_read_id, "object": {"progress_pages": progress_pages}},
+            )
+        else:
+            mutation = """
+            mutation UpdateProgress($userBookId: Int!, $userBookRead: DatesReadInput!) {
+              insert_user_book_read(
+                user_book_id: $userBookId
+                user_book_read: $userBookRead
+              ) {
+                id
+              }
+            }
+            """
+            self._execute(
+                mutation,
+                {
+                    "userBookId": user_book_id,
+                    "userBookRead": {"progress_pages": progress_pages},
+                },
+            )
