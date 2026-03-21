@@ -98,7 +98,7 @@ def _eject(mount: Path) -> None:
             click.echo("Could not find block device for mount — skipping eject.", err=True)
             return
         subprocess.run(
-            ["udisksctl", "unmount", "--block-device", device],
+            ["udisksctl", "unmount", "--block-device", device, "--no-user-interaction"],
             check=True,
             capture_output=True,
         )
