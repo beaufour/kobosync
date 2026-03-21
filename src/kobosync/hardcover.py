@@ -77,6 +77,7 @@ class HardcoverClient:
             user_books {
               id
               status_id
+              rating
               book {
                 id
                 title
@@ -151,16 +152,19 @@ class HardcoverClient:
     # Mutations
     # ------------------------------------------------------------------
 
-    def upsert_user_book(self, book_id: int, status_id: int) -> int:
+    def upsert_user_book(self, book_id: int, status_id: int, rating: int | None = None) -> int:
         """Add or update a book in the user's library. Returns the user_book id."""
         mutation = """
-        mutation UpsertUserBook($bookId: Int!, $statusId: Int!) {
-          insert_user_book(object: { book_id: $bookId, status_id: $statusId }) {
+        mutation UpsertUserBook($object: UserBookCreateInput!) {
+          insert_user_book(object: $object) {
             id
           }
         }
         """
-        data = self._execute(mutation, {"bookId": book_id, "statusId": status_id})
+        obj: dict[str, Any] = {"book_id": book_id, "status_id": status_id}
+        if rating is not None:
+            obj["rating"] = rating
+        data = self._execute(mutation, {"object": obj})
         return int(data["insert_user_book"]["id"])
 
     def update_reading_progress(self, user_book_id: int, progress_pages: int) -> None:

@@ -132,6 +132,7 @@ def _sync_one(
     dry_run: bool,
 ) -> BookSyncOutcome:
     current_status = existing_user_book["status_id"] if existing_user_book else None
+    current_rating = existing_user_book.get("rating") if existing_user_book else None
     reads = existing_user_book.get("user_book_reads", []) if existing_user_book else []
     current_pages = reads[0]["progress_pages"] if reads else None
 
@@ -141,8 +142,9 @@ def _sync_one(
     needs_progress_update = (
         desired_pages is not None and desired_pages > 0 and current_pages != desired_pages
     )
+    needs_rating_update = kobo_book.rating is not None and kobo_book.rating != current_rating
 
-    if not needs_status_update and not needs_progress_update:
+    if not needs_status_update and not needs_progress_update and not needs_rating_update:
         return BookSyncOutcome(kobo_book, SyncResult.SKIPPED, "already up-to-date")
 
     changes = []
@@ -150,6 +152,8 @@ def _sync_one(
         changes.append(f"status {current_status} → {desired_status}")
     if needs_progress_update:
         changes.append(f"progress {current_pages or 0} → {desired_pages} pages")
+    if needs_rating_update:
+        changes.append(f"rating {current_rating} → {kobo_book.rating}")
     change_desc = ", ".join(changes)
 
     if dry_run:
@@ -157,7 +161,8 @@ def _sync_one(
             kobo_book, SyncResult.UPDATED, f"[dry-run] would update: {change_desc}"
         )
 
-    user_book_id = client.upsert_user_book(hc_book.id, desired_status)
+    rating_to_set = kobo_book.rating if needs_rating_update else None
+    user_book_id = client.upsert_user_book(hc_book.id, desired_status, rating_to_set)
 
     if needs_progress_update and desired_pages is not None:
         client.update_reading_progress(user_book_id, desired_pages)

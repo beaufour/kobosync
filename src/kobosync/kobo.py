@@ -21,6 +21,7 @@ class KoboBook:
     read_status: ReadStatus
     percent_read: float  # 0.0–100.0
     date_last_read: str | None
+    rating: int | None  # 1–5, or None if unrated
 
 
 # ContentType=6 is a book (not chapter=9, newspaper=10, etc.)
@@ -28,17 +29,19 @@ class KoboBook:
 # We include all non-zero values so sideloaded and subscription books are synced.
 _QUERY = """
 SELECT
-    ContentID,
-    COALESCE(Title, '') AS Title,
-    COALESCE(Attribution, '') AS Attribution,
-    ISBN,
-    COALESCE(ReadStatus, 0) AS ReadStatus,
-    COALESCE("___PercentRead", 0.0) AS PercentRead,
-    DateLastRead
-FROM content
-WHERE ContentType = 6
-  AND Accessibility != 0
-ORDER BY DateLastRead DESC
+    c.ContentID,
+    COALESCE(c.Title, '') AS Title,
+    COALESCE(c.Attribution, '') AS Attribution,
+    c.ISBN,
+    COALESCE(c.ReadStatus, 0) AS ReadStatus,
+    COALESCE(c."___PercentRead", 0.0) AS PercentRead,
+    c.DateLastRead,
+    r.Rating
+FROM content c
+LEFT JOIN ratings r ON r.ContentID = c.ContentID
+WHERE c.ContentType = 6
+  AND c.Accessibility != 0
+ORDER BY c.DateLastRead DESC
 """
 
 
@@ -54,6 +57,8 @@ def read_books(db_path: Path) -> list[KoboBook]:
             # Strip empty/whitespace-only ISBNs
             if isbn is not None:
                 isbn = isbn.strip() or None
+            raw_rating = row["Rating"]
+            rating = int(raw_rating) if raw_rating and int(raw_rating) > 0 else None
             books.append(
                 KoboBook(
                     content_id=row["ContentID"],
@@ -63,6 +68,7 @@ def read_books(db_path: Path) -> list[KoboBook]:
                     read_status=ReadStatus(row["ReadStatus"]),
                     percent_read=float(row["PercentRead"]),
                     date_last_read=row["DateLastRead"],
+                    rating=rating,
                 )
             )
         return books
