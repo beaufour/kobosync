@@ -1,6 +1,7 @@
 """CLI entry point for kobosync."""
 
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -33,6 +34,7 @@ def cli() -> None:
 @click.option("--eject", is_flag=True, help="Eject the Kobo after a successful sync")
 def sync(config_path: str | None, dry_run: bool, mount: str | None, eject: bool) -> None:
     """Sync Kobo reading status and progress to Hardcover."""
+    click.echo(f"=== kobosync {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
     config = _resolve_config(config_path)
 
     kobo_mount = Path(mount) if mount else find_kobo_mount() or Path(config.kobo.mount_path)
@@ -55,26 +57,28 @@ def sync(config_path: str | None, dry_run: bool, mount: str | None, eject: bool)
         sync_error = str(e)
         outcomes = []
 
-    if outcomes:
-        updated = [o for o in outcomes if o.result == SyncResult.UPDATED]
-        not_found = [o for o in outcomes if o.result == SyncResult.NOT_FOUND]
-        errors = [o for o in outcomes if o.result == SyncResult.ERROR]
+    updated = [o for o in outcomes if o.result == SyncResult.UPDATED]
+    not_found = [o for o in outcomes if o.result == SyncResult.NOT_FOUND]
+    errors = [o for o in outcomes if o.result == SyncResult.ERROR]
 
-        for outcome in outcomes:
-            icon = {
-                SyncResult.UPDATED: "✓",
-                SyncResult.SKIPPED: "·",
-                SyncResult.NOT_FOUND: "?",
-                SyncResult.ERROR: "✗",
-            }[outcome.result]
-            click.echo(f"  {icon} {outcome.kobo_book.title!r}  — {outcome.message}")
+    for outcome in outcomes:
+        icon = {
+            SyncResult.UPDATED: "✓",
+            SyncResult.SKIPPED: "·",
+            SyncResult.NOT_FOUND: "?",
+            SyncResult.ERROR: "✗",
+        }[outcome.result]
+        click.echo(f"  {icon} {outcome.kobo_book.title!r}  — {outcome.message}")
 
+    if sync_error:
+        click.echo(f"\nSync failed: {sync_error}", err=True)
+    else:
         click.echo(
             f"\nDone: {len(updated)} updated, {len(not_found)} not found on Hardcover, "
             f"{len(errors)} errors"
         )
-        if dry_run:
-            click.echo("(dry-run: no changes were made)")
+    if dry_run:
+        click.echo("(dry-run: no changes were made)")
 
     if eject and not dry_run:
         _eject(kobo_mount)
