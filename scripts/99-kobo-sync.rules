@@ -15,4 +15,4 @@ ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="2237", \
     RUN+="/bin/systemd-run --unit=kobosync-trigger \
       --property=StandardOutput=append:/home/pi/kobosync.log \
       --property=StandardError=append:/home/pi/kobosync.log \
-      /home/pi/.local/bin/kobosync sync"
+      /home/pi/.local/bin/kobosync sync --eject"

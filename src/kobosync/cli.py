@@ -1,5 +1,6 @@
 """CLI entry point for kobosync."""
 
+import subprocess
 from pathlib import Path
 
 import click
@@ -29,7 +30,8 @@ def cli() -> None:
 @click.option("--config", "config_path", default=None, help="Path to config.toml")
 @click.option("--dry-run", is_flag=True, help="Show what would be synced without making changes")
 @click.option("--mount", default=None, help="Override Kobo mount path")
-def sync(config_path: str | None, dry_run: bool, mount: str | None) -> None:
+@click.option("--eject", is_flag=True, help="Eject the Kobo after a successful sync")
+def sync(config_path: str | None, dry_run: bool, mount: str | None, eject: bool) -> None:
     """Sync Kobo reading status and progress to Hardcover."""
     config = _resolve_config(config_path)
 
@@ -70,6 +72,40 @@ def sync(config_path: str | None, dry_run: bool, mount: str | None) -> None:
     )
     if dry_run:
         click.echo("(dry-run: no changes were made)")
+
+    if eject and not dry_run:
+        _eject(kobo_mount)
+
+
+def _eject(mount: Path) -> None:
+    """Unmount and power off the Kobo using udisksctl."""
+    click.echo(f"Ejecting {mount} ...")
+    try:
+        subprocess.run(
+            ["udisksctl", "unmount", "--mount-point", str(mount)],
+            check=True,
+            capture_output=True,
+        )
+        # Power off the parent block device so it's safe to unplug
+        result = subprocess.run(
+            ["findmnt", "--target", str(mount), "--output", "SOURCE", "--noheadings"],
+            capture_output=True,
+            text=True,
+        )
+        device = result.stdout.strip()
+        if device:
+            # Power off the whole disk (e.g. /dev/sda from /dev/sda1)
+            disk = device.rstrip("0123456789")
+            subprocess.run(
+                ["udisksctl", "power-off", "--block-device", disk],
+                check=True,
+                capture_output=True,
+            )
+        click.echo("Ejected. Safe to unplug.")
+    except FileNotFoundError:
+        click.echo("udisksctl not found — skipping eject (not on Linux?)", err=True)
+    except subprocess.CalledProcessError as e:
+        click.echo(f"Eject failed: {e.stderr.decode().strip()}", err=True)
 
 
 @cli.command()
