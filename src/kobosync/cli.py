@@ -31,8 +31,11 @@ def cli() -> None:
 @click.option("--config", "config_path", default=None, help="Path to config.toml")
 @click.option("--dry-run", is_flag=True, help="Show what would be synced without making changes")
 @click.option("--mount", default=None, help="Override Kobo mount path")
-@click.option("--eject", is_flag=True, help="Eject the Kobo after a successful sync")
-def sync(config_path: str | None, dry_run: bool, mount: str | None, eject: bool) -> None:
+@click.option("--eject", is_flag=True, help="Eject the Kobo after sync")
+@click.option("--verbose", "-v", is_flag=True, help="Show each book's sync status")
+def sync(
+    config_path: str | None, dry_run: bool, mount: str | None, eject: bool, verbose: bool
+) -> None:
     """Sync Kobo reading status and progress to Hardcover."""
     click.echo(f"=== kobosync {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
     config = _resolve_config(config_path)
@@ -45,9 +48,7 @@ def sync(config_path: str | None, dry_run: bool, mount: str | None, eject: bool)
             f"Kobo database not found at {db_path}\nMake sure your Kobo is plugged in and mounted."
         )
 
-    click.echo(f"Reading Kobo database: {db_path}")
     books = read_books(db_path)
-    click.echo(f"Found {len(books)} book(s) on Kobo")
 
     sync_error: str | None = None
     try:
@@ -58,25 +59,33 @@ def sync(config_path: str | None, dry_run: bool, mount: str | None, eject: bool)
         outcomes = []
 
     updated = [o for o in outcomes if o.result == SyncResult.UPDATED]
-    not_found = [o for o in outcomes if o.result == SyncResult.NOT_FOUND]
     errors = [o for o in outcomes if o.result == SyncResult.ERROR]
 
-    for outcome in outcomes:
-        icon = {
-            SyncResult.UPDATED: "✓",
-            SyncResult.SKIPPED: "·",
-            SyncResult.NOT_FOUND: "?",
-            SyncResult.ERROR: "✗",
-        }[outcome.result]
-        click.echo(f"  {icon} {outcome.kobo_book.title!r}  — {outcome.message}")
+    if verbose:
+        for outcome in outcomes:
+            icon = {
+                SyncResult.UPDATED: "✓",
+                SyncResult.SKIPPED: "·",
+                SyncResult.NOT_FOUND: "?",
+                SyncResult.ERROR: "✗",
+            }[outcome.result]
+            click.echo(f"  {icon} {outcome.kobo_book.title!r}  — {outcome.message}")
+
+    if verbose and updated:
+        click.echo("")
 
     if sync_error:
-        click.echo(f"\nSync failed: {sync_error}", err=True)
+        click.echo(f"Sync failed: {sync_error}", err=True)
+    elif updated:
+        titles = ", ".join(repr(o.kobo_book.title) for o in updated)
+        click.echo(f"Updated {len(updated)} book(s): {titles}")
     else:
-        click.echo(
-            f"\nDone: {len(updated)} updated, {len(not_found)} not found on Hardcover, "
-            f"{len(errors)} errors"
-        )
+        click.echo("Already up-to-date.")
+
+    if errors:
+        for o in errors:
+            click.echo(f"  Error: {o.kobo_book.title!r} — {o.message}", err=True)
+
     if dry_run:
         click.echo("(dry-run: no changes were made)")
 
