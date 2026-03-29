@@ -28,6 +28,11 @@ class BookSyncOutcome:
     message: str = ""
 
 
+def _format_date(kobo_timestamp: str) -> str:
+    """Extract a YYYY-MM-DD date from a Kobo ISO timestamp."""
+    return kobo_timestamp[:10]
+
+
 def _kobo_status_to_hardcover(read_status: ReadStatus) -> int | None:
     """Map Kobo ReadStatus to a Hardcover status_id. Returns None for unread."""
     if read_status == ReadStatus.READING:
@@ -143,17 +148,27 @@ def _sync_one(
     reads = existing_user_book.get("user_book_reads", []) if existing_user_book else []
     existing_read = reads[0] if reads else None
     current_pages = existing_read["progress_pages"] if existing_read else None
+    current_finished_at = existing_read.get("finished_at") if existing_read else None
     existing_read_id: int | None = int(existing_read["id"]) if existing_read else None
 
     desired_pages = _compute_progress_pages(kobo_book.percent_read, hc_book.pages)
+    desired_finished_at = _format_date(kobo_book.date_finished) if kobo_book.date_finished else None
 
     needs_status_update = current_status != desired_status
     needs_progress_update = (
         desired_pages is not None and desired_pages > 0 and current_pages != desired_pages
     )
     needs_rating_update = kobo_book.rating is not None and kobo_book.rating != current_rating
+    needs_finished_at_update = (
+        desired_finished_at is not None and current_finished_at != desired_finished_at
+    )
 
-    if not needs_status_update and not needs_progress_update and not needs_rating_update:
+    if (
+        not needs_status_update
+        and not needs_progress_update
+        and not needs_rating_update
+        and not needs_finished_at_update
+    ):
         return BookSyncOutcome(kobo_book, SyncResult.SKIPPED, "already up-to-date")
 
     changes = []
@@ -163,6 +178,8 @@ def _sync_one(
         changes.append(f"progress {current_pages or 0} → {desired_pages} pages")
     if needs_rating_update:
         changes.append(f"rating {current_rating} → {kobo_book.rating}")
+    if needs_finished_at_update:
+        changes.append(f"finished_at → {desired_finished_at}")
     change_desc = ", ".join(changes)
 
     if dry_run:
@@ -174,7 +191,9 @@ def _sync_one(
     rating_to_set = kobo_book.rating if needs_rating_update else current_rating
     user_book_id = client.upsert_user_book(hc_book.id, desired_status, rating_to_set)
 
-    if needs_progress_update and desired_pages is not None:
-        client.update_reading_progress(user_book_id, desired_pages, existing_read_id)
+    if needs_progress_update or needs_finished_at_update:
+        pages = desired_pages if desired_pages and desired_pages > 0 else current_pages or 0
+        finished_at = desired_finished_at if needs_finished_at_update else None
+        client.update_reading_progress(user_book_id, pages, existing_read_id, finished_at)
 
     return BookSyncOutcome(kobo_book, SyncResult.UPDATED, change_desc)

@@ -22,6 +22,7 @@ class KoboBook:
     percent_read: float  # 0.0–100.0
     date_last_read: str | None
     rating: int | None  # 1–5, or None if unrated
+    date_finished: str | None  # from Event table, EventType=5
 
 
 # ContentType=6 is a book (not chapter=9, newspaper=10, etc.)
@@ -36,9 +37,11 @@ SELECT
     COALESCE(c.ReadStatus, 0) AS ReadStatus,
     COALESCE(c."___PercentRead", 0.0) AS PercentRead,
     c.DateLastRead,
-    r.Rating
+    r.Rating,
+    e.LastOccurrence AS DateFinished
 FROM content c
 LEFT JOIN ratings r ON r.ContentID = c.ContentID
+LEFT JOIN Event e ON e.ContentID = c.ContentID AND e.EventType = 5
 WHERE c.ContentType = 6
   AND c.Accessibility != 0
 ORDER BY c.DateLastRead DESC
@@ -69,6 +72,7 @@ def read_books(db_path: Path) -> list[KoboBook]:
                     percent_read=float(row["PercentRead"]),
                     date_last_read=row["DateLastRead"],
                     rating=rating,
+                    date_finished=row["DateFinished"],
                 )
             )
         return books

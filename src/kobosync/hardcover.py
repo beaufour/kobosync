@@ -168,13 +168,21 @@ class HardcoverClient:
         return int(data["insert_user_book"]["id"])
 
     def update_reading_progress(
-        self, user_book_id: int, progress_pages: int, existing_read_id: int | None = None
+        self,
+        user_book_id: int,
+        progress_pages: int,
+        existing_read_id: int | None = None,
+        finished_at: str | None = None,
     ) -> None:
         """Record current page progress for a user_book.
 
         If existing_read_id is provided, updates that read session in place.
         Otherwise creates a new read session via insert_user_book_read.
         """
+        read_obj: dict[str, Any] = {"progress_pages": progress_pages}
+        if finished_at is not None:
+            read_obj["finished_at"] = finished_at
+
         if existing_read_id is not None:
             mutation = """
             mutation UpdateProgress($id: Int!, $object: DatesReadInput!) {
@@ -185,7 +193,7 @@ class HardcoverClient:
             """
             self._execute(
                 mutation,
-                {"id": existing_read_id, "object": {"progress_pages": progress_pages}},
+                {"id": existing_read_id, "object": read_obj},
             )
         else:
             mutation = """
@@ -202,6 +210,6 @@ class HardcoverClient:
                 mutation,
                 {
                     "userBookId": user_book_id,
-                    "userBookRead": {"progress_pages": progress_pages},
+                    "userBookRead": read_obj,
                 },
             )
