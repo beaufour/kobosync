@@ -124,8 +124,15 @@ def _find_by_title(book: KoboBook, client: HardcoverClient) -> HardcoverBook | N
     return None
 
 
+def _normalize_title(title: str) -> str:
+    """Normalize a title for comparison: lowercase, strip punctuation differences."""
+    import re
+
+    return re.sub(r"[^\w\s]", "", title.strip().lower())
+
+
 def _titles_match(a: str, b: str) -> bool:
-    return a.strip().lower() == b.strip().lower()
+    return _normalize_title(a) == _normalize_title(b)
 
 
 def _compute_progress_pages(percent: float, total_pages: int | None) -> int | None:

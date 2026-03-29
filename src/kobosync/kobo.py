@@ -57,9 +57,12 @@ def read_books(db_path: Path) -> list[KoboBook]:
         books = []
         for row in cursor:
             isbn = row["ISBN"]
-            # Strip empty/whitespace-only ISBNs
+            # Strip empty/whitespace-only ISBNs and normalize
             if isbn is not None:
-                isbn = isbn.strip() or None
+                isbn = isbn.strip().replace("-", "") or None
+            # Discard non-ISBN values (e.g. sideloaded books with URN UUIDs)
+            if isbn is not None and not isbn.isdigit():
+                isbn = None
             raw_rating = row["Rating"]
             rating = int(raw_rating) if raw_rating and int(raw_rating) > 0 else None
             books.append(
