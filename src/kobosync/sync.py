@@ -42,6 +42,15 @@ def _kobo_status_to_hardcover(read_status: ReadStatus) -> int | None:
     return None
 
 
+def _has_unconfirmed_finished_status(book: KoboBook) -> bool:
+    """Return whether Kobo's finished flag lacks any supporting reading data."""
+    return (
+        book.read_status == ReadStatus.FINISHED
+        and book.percent_read <= 0
+        and not book.date_finished
+    )
+
+
 def sync_books(
     kobo_books: list[KoboBook],
     client: HardcoverClient,
@@ -61,7 +70,12 @@ def sync_books(
     hardcover_by_book_id: dict[int, dict] = {int(ub["book"]["id"]): ub for ub in my_books}
 
     # 2. Batch ISBN lookup for all active books (one call)
-    active_books = [b for b in kobo_books if _kobo_status_to_hardcover(b.read_status) is not None]
+    active_books = [
+        b
+        for b in kobo_books
+        if _kobo_status_to_hardcover(b.read_status) is not None
+        and not _has_unconfirmed_finished_status(b)
+    ]
     isbns = [b.isbn for b in active_books if b.isbn]
     isbn_to_book: dict[str, HardcoverBook] = client.batch_books_by_isbn(isbns) if isbns else {}
 
@@ -69,6 +83,16 @@ def sync_books(
     synced_hc_ids: set[int] = set()
 
     for book in kobo_books:
+        if _has_unconfirmed_finished_status(book):
+            outcomes.append(
+                BookSyncOutcome(
+                    book,
+                    SyncResult.SKIPPED,
+                    "Kobo says finished but has 0% progress and no finish event",
+                )
+            )
+            continue
+
         desired_status = _kobo_status_to_hardcover(book.read_status)
         if desired_status is None:
             outcomes.append(BookSyncOutcome(book, SyncResult.SKIPPED, "unread"))
